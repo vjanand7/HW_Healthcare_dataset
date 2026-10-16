@@ -1,0 +1,81 @@
+import repository
+from models import InterventionStatus
+
+
+class NotFoundError(ValueError):
+    """The requested record does not exist (HTTP 404)."""
+
+
+class ConflictError(ValueError):
+    """The request conflicts with the current state (HTTP 409)."""
+
+
+# The only fields the score may read. `readmitted` (the historical outcome) is deliberately absent.
+SCORING_FIELDS = (
+    "number_inpatient", "number_emergency", "number_outpatient",
+    "time_in_hospital", "num_medications",
+)
+
+
+def calculate_risk(encounter: dict):
+    def value(key):
+        return encounter.get(key) or 0  # missing or null counts as 0
+
+    score = 0
+    if value("number_inpatient") >= 3:
+        score += 3
+    if value("number_emergency") >= 2:
+        score += 2
+    if value("number_outpatient") >= 3:
+        score += 1
+    if value("time_in_hospital") >= 7:
+        score += 1
+    if value("num_medications") >= 20:
+        score += 1
+
+    if score >= 5:
+        level = "HIGH"
+    elif score >= 3:
+        level = "MEDIUM"
+    else:
+        level = "LOW"
+
+    return score, level
+
+
+def list_encounters(limit: int, offset: int):
+    return repository.get_all_encounters(limit=limit, offset=offset)
+
+
+def get_encounter(encounter_id: str):
+    encounter = repository.get_encounter_by_id(encounter_id)
+    if encounter is None:
+        raise NotFoundError(f"Encounter ID '{encounter_id}' not found.")
+    return encounter
+
+
+def get_care_queue(risk_levels: list, limit: int, offset: int):
+    return repository.get_care_queue(risk_levels, limit=limit, offset=offset)
+
+
+def update_intervention(encounter_id: str, status: InterventionStatus, fields: dict):
+    """Create or update an intervention. A CLOSED case cannot be reopened."""
+    get_encounter(encounter_id)  # 404 if the encounter does not exist
+    current = repository.get_intervention(encounter_id)
+    if (
+        current
+        and current["status"] == InterventionStatus.CLOSED.value
+        and status != InterventionStatus.CLOSED
+    ):
+        raise ConflictError(
+            f"Encounter '{encounter_id}' is CLOSED and cannot be moved back to {status.value}."
+        )
+    return repository.upsert_intervention(encounter_id, status.value, fields)
+
+
+def get_operations_metrics():
+    return repository.get_operations_metrics()
+
+
+def get_readmission_stats():
+    return repository.get_readmission_stats()
