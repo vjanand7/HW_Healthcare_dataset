@@ -2,6 +2,7 @@ from typing import Annotated
 
 import psycopg
 from fastapi import FastAPI, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 import service
@@ -16,6 +17,20 @@ app = FastAPI(
     title="Diabetes Readmission Intervention Queue MVP",
     description="FDE Enterprise Healthcare Care-Management Backend",
     version="1.0.0"
+)
+
+
+# Browser origins allowed to call this API (local React dev servers: Vite and Create React App).
+# Add the deployed UI's origin here when there is one. Never use "*" for a healthcare API.
+ALLOWED_ORIGINS = [
+    "http://localhost:5173", "http://127.0.0.1:5173",
+    "http://localhost:3000", "http://127.0.0.1:3000",
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["GET", "PATCH"],
+    allow_headers=["Content-Type"],
 )
 
 
@@ -49,6 +64,24 @@ def list_encounters(limit: Limit = 100, offset: Offset = 0):
 def get_encounter(encounter_id: str):
     """Retrieves a single patient encounter by its unique ID, raising a 404 if not found."""
     return service.get_encounter(encounter_id)
+
+
+@app.get("/patients/{patient_nbr}/encounters")
+def patient_encounters(patient_nbr: str):
+    """Full encounter history for one patient, with the highest risk score seen."""
+    return service.get_patient_encounters(patient_nbr)
+
+
+@app.get("/analytics/age-groups")
+def age_group_analytics():
+    """Encounter volume, average stay, average risk and <30-day readmission rate per age band."""
+    return service.get_age_group_stats()
+
+
+@app.get("/analytics/utilization")
+def utilization_analytics():
+    """<30-day readmission rate by number of prior inpatient visits (0, 1, 2, 3+)."""
+    return service.get_utilization_stats()
 
 
 @app.get("/care-queue")

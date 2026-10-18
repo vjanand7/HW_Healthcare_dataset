@@ -28,6 +28,60 @@ def get_encounter_by_id(encounter_id: str):
             return cursor.fetchone()
 
 
+def get_encounters_by_patient(patient_nbr: str):
+    """All encounters for one patient, oldest encounter_id first."""
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cursor:
+            cursor.execute(
+                "SELECT * FROM patient_encounters WHERE patient_nbr = %s ORDER BY encounter_id;",
+                (patient_nbr,),
+            )
+            return cursor.fetchall()
+
+
+def get_age_group_stats():
+    """Per age band: encounter count, average stay, average risk score, <30-day readmissions."""
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cursor:
+            cursor.execute(
+                """
+                SELECT age,
+                       COUNT(*) AS encounters,
+                       ROUND(AVG(time_in_hospital), 2)::float AS avg_days_in_hospital,
+                       ROUND(AVG(risk_score), 2)::float AS avg_risk_score,
+                       COUNT(*) FILTER (WHERE risk_level = 'HIGH') AS high_risk,
+                       COUNT(*) FILTER (WHERE readmitted = '<30') AS readmitted_under_30_days,
+                       ROUND(100.0 * COUNT(*) FILTER (WHERE readmitted = '<30') / COUNT(*), 2)::float
+                           AS readmission_rate
+                FROM patient_encounters
+                GROUP BY age
+                ORDER BY age;
+                """
+            )
+            return cursor.fetchall()
+
+
+def get_utilization_stats():
+    """Readmission rate grouped by prior inpatient visits (0, 1, 2, 3+), the biggest risk driver."""
+    with get_connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cursor:
+            cursor.execute(
+                """
+                SELECT CASE WHEN number_inpatient >= 3 THEN '3+' ELSE number_inpatient::text END
+                           AS prior_inpatient_visits,
+                       COUNT(*) AS encounters,
+                       ROUND(AVG(risk_score), 2)::float AS avg_risk_score,
+                       COUNT(*) FILTER (WHERE readmitted = '<30') AS readmitted_under_30_days,
+                       ROUND(100.0 * COUNT(*) FILTER (WHERE readmitted = '<30') / COUNT(*), 2)::float
+                           AS readmission_rate
+                FROM patient_encounters
+                GROUP BY 1
+                ORDER BY 1;
+                """
+            )
+            return cursor.fetchall()
+
+
 def get_care_queue(risk_levels: list, limit: int = 50, offset: int = 0):
     """
     Open (not CLOSED) encounters at the given risk levels, highest score first,

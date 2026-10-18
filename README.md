@@ -84,6 +84,9 @@ Healthcare CSV  →  data_loader.py  →  PostgreSQL  ←  repository.py  ←  s
 | :--- | :--- | :--- |
 | `GET` | `/encounters` | List encounters (paginated) |
 | `GET` | `/encounters/{encounter_id}` | Get one encounter; `404` if missing |
+| `GET` | `/patients/{patient_nbr}/encounters` | Full encounter history for one patient; `404` if unknown |
+| `GET` | `/analytics/age-groups` | Volume, average stay, average risk and <30-day readmission rate per age band |
+| `GET` | `/analytics/utilization` | <30-day readmission rate by prior inpatient visits (0, 1, 2, 3+) |
 | `GET` | `/care-queue` | Open MEDIUM + HIGH risk queue |
 | `GET` | `/care-queue/high` | Open HIGH risk queue only |
 | `PATCH` | `/interventions/{encounter_id}` | Update workflow status / owner / notes; `404` if the encounter is missing |

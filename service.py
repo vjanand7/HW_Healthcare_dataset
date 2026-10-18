@@ -54,6 +54,26 @@ def get_encounter(encounter_id: str):
     return encounter
 
 
+def get_patient_encounters(patient_nbr: str):
+    encounters = repository.get_encounters_by_patient(patient_nbr)
+    if not encounters:
+        raise NotFoundError(f"Patient '{patient_nbr}' not found.")
+    return {
+        "patient_nbr": patient_nbr,
+        "total_encounters": len(encounters),
+        "highest_risk_score": max(e["risk_score"] for e in encounters),
+        "encounters": encounters,
+    }
+
+
+def get_age_group_stats():
+    return repository.get_age_group_stats()
+
+
+def get_utilization_stats():
+    return repository.get_utilization_stats()
+
+
 def get_care_queue(risk_levels: list, limit: int, offset: int):
     return repository.get_care_queue(risk_levels, limit=limit, offset=offset)
 
